@@ -1,10 +1,7 @@
 package main
 
 import (
-	// "errors"
 	"fmt"
-	// "strings"
-	// "reflect"
 	"sync"
 	"time"
 )
@@ -163,33 +160,5 @@ func main() {
 	fmt.Println(*storage)
 	storage.DeleteExpiredNodes()
 	fmt.Println(*storage)
-	// if r, e := storage.Get("lisstkey"); e != nil {
-	// 	fmt.Println(e)
-	// } else {
-	// 	fmt.Println(r)
-	// }
-
-	// if r, e := storage.Get("listkey"); e != nil {
-	// 	fmt.Println(e)
-	// } else {
-	// 	fmt.Println(r)
-	// }
-	// r, _ := storage.Get("dictkey")
-
-	// if  e := storage.Delete("listkey"); e != nil {
-	// 	fmt.Println(e)
-	// } else {
-	// 	fmt.Println(r)
-	// }
-	// v.(struct{Id int}).Id
-	// re := r.(Node)
-	// fmt.Println(reflect.TypeOf(re), re.val)
-	// r, e := re.get("test")
-	// fmt.Println(r, e)
-
-	// fmt.Println(time.Duration(time.Second * 2))
-	// rr := r.get(0)
-	// fmt.Println(reflect.TypeOf(v))
-	// fmt.Println(*storage)
 
 }
