@@ -6,6 +6,10 @@ import (
 	"time"
 )
 
+const (
+	NeverDie time.Duration = -1
+)
+
 type AlreadyExistError struct {
 	Key string
 }
@@ -61,9 +65,9 @@ func GetTimeDuration(t time.Duration) int64 {
 }
 
 type Storage struct {
-	nodes map[string]Node
-	mu    sync.RWMutex
-	// checker *Cherker
+	nodes   map[string]Node
+	mu      sync.RWMutex
+	checker *Checker
 }
 
 func (storage *Storage) Set(
@@ -77,7 +81,11 @@ func (storage *Storage) Set(
 		storage.mu.Unlock()
 		return storage, &AlreadyExistError{k}
 	}
-	storage.nodes[k] = Node{val: v, ttl: GetTimeDuration(ttl)}
+	if ttl == NeverDie {
+		storage.nodes[k] = Node{val: v, ttl: -1}
+	} else {
+		storage.nodes[k] = Node{val: v, ttl: GetTimeDuration(ttl)}
+	}
 	storage.mu.Unlock()
 	return storage.nodes[k], nil
 }
@@ -132,11 +140,43 @@ func (storage *Storage) DeleteExpiredNodes() {
 	storage.mu.Unlock()
 }
 
+type Checker struct {
+	interval time.Duration
+	stop     chan bool
+}
+
+func (c *Checker) Run(storage *Storage) {
+	c.stop = make(chan bool)
+	ticker := time.NewTicker(c.interval)
+	for {
+		select {
+		case <-ticker.C:
+			storage.DeleteExpiredNodes()
+			fmt.Println(storage)
+		case <-c.stop:
+			ticker.Stop()
+			return
+		}
+	}
+}
+
+func StopChecker(storage *Storage) {
+	storage.checker.stop <- true
+}
+
+func RunChecker(storage *Storage, interval time.Duration) {
+	checker := &Checker{
+		interval: interval,
+	}
+	storage.checker = checker
+	go checker.Run(storage)
+}
+
 func main() {
 	storage := new(Storage)
-	fmt.Println(storage)
+	// fmt.Println(storage)
 	storage.nodes = make(map[string]Node)
-	fmt.Println(storage)
+	// fmt.Println(storage)
 
 	m := make(map[string]int)
 	m["test"] = 11
@@ -148,17 +188,28 @@ func main() {
 	} else {
 		fmt.Println(r)
 	}
-	fmt.Println(storage)
+	// fmt.Println(storage)
 	if r, e := storage.Update("stringkey", "stringasdvalue", 10); e != nil {
 		fmt.Println(e)
 	} else {
 		fmt.Println(r)
 	}
 
-	storage.Set("listkey", s, time.Second*2)
-	storage.Set("dictkey", m, 10)
-	fmt.Println(*storage)
-	storage.DeleteExpiredNodes()
-	fmt.Println(*storage)
+	storage.Set("listkey", s, time.Second*5)
+	storage.Set("dictkey", m, -1)
+	fmt.Println(storage)
+	// fmt.Println(*storage)
+	// storage.DeleteExpiredNodes()
+	// fmt.Println(*storage)
+
+	// checker := Checker{interval: time.Second * 3}
+	// checker.Run(storage)
+	RunChecker(storage, time.Second*3)
+	// time.Sleep(time.Second * 5)
+
+	time.Sleep(time.Second * 9)
+	fmt.Println("Ticker stopped")
+	StopChecker(storage)
+	fmt.Println("End")
 
 }
