@@ -1,4 +1,4 @@
-package main
+package storage
 
 import (
 	"fmt"
@@ -6,6 +6,7 @@ import (
 	"time"
 )
 
+//todo sync.WaitGroup
 const (
 	NeverDie time.Duration = -1
 )
@@ -37,10 +38,15 @@ func (e ConversionError) Error() string {
 type Node struct {
 	val interface{}
 	//time to live
-	ttl int64
+	ttl    int64
+	dumped bool
 }
 
-func (n *Node) get(i interface{}) (interface{}, error) {
+func NewNode(val interface{}, ttl int64) *Node {
+	return &Node{val: val, ttl: ttl, dumped: false}
+}
+
+func (n *Node) Get(i interface{}) (interface{}, error) {
 	switch i.(type) {
 	case int:
 		s, ok := n.val.([]int)
@@ -60,6 +66,18 @@ func (n *Node) get(i interface{}) (interface{}, error) {
 	return nil, nil
 }
 
+func (n *Node) String() string {
+	return fmt.Sprintf("value: %v ttl: %v", n.val, n.ttl)
+}
+
+func (n *Node) IsDumped() bool {
+	return n.dumped
+}
+
+func (n *Node) MakeDumped() {
+	n.dumped = true
+}
+
 func GetTimeDuration(t time.Duration) int64 {
 	return time.Now().Add(t).UnixNano()
 }
@@ -68,6 +86,10 @@ type Storage struct {
 	nodes   map[string]Node
 	mu      sync.RWMutex
 	checker *Checker
+}
+
+func (storage *Storage) New() {
+	storage.nodes = make(map[string]Node)
 }
 
 func (storage *Storage) Set(
@@ -82,9 +104,9 @@ func (storage *Storage) Set(
 		return storage, &AlreadyExistError{k}
 	}
 	if ttl == NeverDie {
-		storage.nodes[k] = Node{val: v, ttl: -1}
+		storage.nodes[k] = *NewNode(v, -1)
 	} else {
-		storage.nodes[k] = Node{val: v, ttl: GetTimeDuration(ttl)}
+		storage.nodes[k] = *NewNode(v, GetTimeDuration(ttl))
 	}
 	storage.mu.Unlock()
 	return storage.nodes[k], nil
@@ -140,9 +162,22 @@ func (storage *Storage) DeleteExpiredNodes() {
 	storage.mu.Unlock()
 }
 
+func (storage *Storage) GetNodes() *map[string]Node {
+	return &storage.nodes
+}
+
+func (storage *Storage) LockMutex() {
+	storage.mu.Lock()
+}
+
+func (storage *Storage) UnlockMutex() {
+	storage.mu.Unlock()
+}
+
 type Checker struct {
 	interval time.Duration
 	stop     chan bool
+	wg       sync.WaitGroup
 }
 
 func (c *Checker) Run(storage *Storage) {
@@ -151,8 +186,9 @@ func (c *Checker) Run(storage *Storage) {
 	for {
 		select {
 		case <-ticker.C:
+			c.wg.Add(1)
 			storage.DeleteExpiredNodes()
-			fmt.Println(storage)
+			c.wg.Done()
 		case <-c.stop:
 			ticker.Stop()
 			return
@@ -161,6 +197,7 @@ func (c *Checker) Run(storage *Storage) {
 }
 
 func StopChecker(storage *Storage) {
+	storage.checker.wg.Wait()
 	storage.checker.stop <- true
 }
 
@@ -170,46 +207,4 @@ func RunChecker(storage *Storage, interval time.Duration) {
 	}
 	storage.checker = checker
 	go checker.Run(storage)
-}
-
-func main() {
-	storage := new(Storage)
-	// fmt.Println(storage)
-	storage.nodes = make(map[string]Node)
-	// fmt.Println(storage)
-
-	m := make(map[string]int)
-	m["test"] = 11
-	s := make([]int, 3)
-	s = append(s, 1)
-
-	if r, e := storage.Set("stringkey", "stringvalue", 10); e != nil {
-		fmt.Println(e)
-	} else {
-		fmt.Println(r)
-	}
-	// fmt.Println(storage)
-	if r, e := storage.Update("stringkey", "stringasdvalue", 10); e != nil {
-		fmt.Println(e)
-	} else {
-		fmt.Println(r)
-	}
-
-	storage.Set("listkey", s, time.Second*5)
-	storage.Set("dictkey", m, -1)
-	fmt.Println(storage)
-	// fmt.Println(*storage)
-	// storage.DeleteExpiredNodes()
-	// fmt.Println(*storage)
-
-	// checker := Checker{interval: time.Second * 3}
-	// checker.Run(storage)
-	RunChecker(storage, time.Second*3)
-	// time.Sleep(time.Second * 5)
-
-	time.Sleep(time.Second * 9)
-	fmt.Println("Ticker stopped")
-	StopChecker(storage)
-	fmt.Println("End")
-
 }
