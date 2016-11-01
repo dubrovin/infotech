@@ -30,7 +30,12 @@ func main() {
 	stor.Set("listkey", s, time.Second*5)
 	stor.Set("dictkey", m, -1)
 	fmt.Println("Storage before running checker")
-	fmt.Println(stor)
+	fmt.Println(stor.Len())
+	zz, _ := stor.Get("stringkey")
+	rr := zz.(storage.Node)
+	bb, _ := rr.Get("string")
+
+	fmt.Println(bb)
 	// persister.Dump(stor.GetNodes())
 	persister.RunPersister(stor, time.Second*3)
 	storage.RunChecker(stor, time.Second*3)

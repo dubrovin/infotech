@@ -2,6 +2,7 @@ package storage
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 )
@@ -59,6 +60,11 @@ func (n *Node) Get(i interface{}) (interface{}, error) {
 		s, ok := n.val.(map[string]int)
 		if ok {
 			return s[i.(string)], nil
+		} else if r, err := n.val.(string); err {
+			if strings.Contains(r, i.(string)) {
+				return n.val.(string), nil
+			}
+			return nil, &NotFoundError{i.(string)}
 		}
 		return nil, &ConversionError{"map[string]int"}
 
@@ -172,6 +178,10 @@ func (storage *Storage) LockMutex() {
 
 func (storage *Storage) UnlockMutex() {
 	storage.mu.Unlock()
+}
+
+func (storage *Storage) Len() int {
+	return len(storage.nodes)
 }
 
 type Checker struct {
