@@ -2,6 +2,7 @@ package storage
 
 import (
 	"testing"
+	"time"
 )
 
 func TestEmptyStorage(t *testing.T) {
@@ -163,4 +164,27 @@ func TestStorageGetNodes(t *testing.T) {
 	if got := len(*nodes); got != 1 {
 		t.Errorf("got %d, want %d", got, 1)
 	}
+}
+
+func TestStorageWithCheker(t *testing.T) {
+	stor := new(Storage)
+	stor.New()
+	m := make(map[string]int)
+	m["test"] = 11
+	s := make([]int, 3)
+	s = append(s, 1)
+
+	stor.Set("stringkey", "stringvalue", time.Second*2)
+	stor.Set("listkey", s, time.Second*9)
+	stor.Set("dictkey", m, -1)
+	if got := stor.Len(); got != 3 {
+		t.Errorf("got %d, want %d", got, 3)
+	}
+	RunChecker(stor, time.Second*3)
+	time.Sleep(time.Second * 6)
+	if got := stor.Len(); got != 2 {
+		t.Errorf("got %d, want %d", got, 2)
+	}
+	time.Sleep(time.Second * 3)
+	StopChecker(stor)
 }

@@ -181,7 +181,10 @@ func (storage *Storage) UnlockMutex() {
 }
 
 func (storage *Storage) Len() int {
-	return len(storage.nodes)
+	storage.mu.Lock()
+	r := len(storage.nodes)
+	storage.mu.Unlock()
+	return r
 }
 
 type Checker struct {
